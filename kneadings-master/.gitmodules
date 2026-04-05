@@ -1,0 +1,6 @@
+[submodule "eq_finder"]
+	path = lib/eq_finder
+	url = https://github.com/Evgenij-Gr/eq-finder.git
+[submodule "computation_template"]
+	path = lib/computation_template
+	url = https://github.com/Evgenij-Gr/computation-template.git

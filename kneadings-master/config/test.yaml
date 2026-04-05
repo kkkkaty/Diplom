@@ -1,0 +1,72 @@
+# a config for bi-parametric sweep
+# in parameters s and alpha
+# "defaultSystem" describes default parameter values
+# for studied system; system is always created with
+# these parameters first
+defaultSystem:
+  w: 0.0
+  a: -2.911209192326542
+  b: -1.612684228842761
+  r: 1.0
+# grid describes parameter sweeps
+# it must have either "first" AND "second" keys (biparametric),
+# or "first" only (single parameter)
+# each of these dictionaries must have following keys:
+# "min": minimal parameter value
+# "max":  maximal parameter value
+# "steps": how many nodes between [min, max] including endpoints
+# "caption": LaTeX version of parameter name, used for plotting
+grid:
+  first:
+    left_n: 5
+    right_n: 5
+    left_step: 0.001
+    right_step: 0.001
+    name: a
+    caption: \alpha
+  second:
+    down_n: 5
+    up_n: 5
+    down_step: 0.001
+    up_step: 0.001
+    name: b
+    caption: \beta
+# name of the task to perform
+task: kneadings_fbpo
+# next entry must have the same name as value for "task" key
+# stores parameters for performing task function, depends on what
+# task function needs
+kneadings_fbpo:
+  dt: 0.01
+  n: 50000
+  stride: 1
+  kneadings_start: 0
+  kneadings_end: 7
+# information for saving files
+# "directory": where save it
+# "mask": what is the prefix
+# "useTimeStamp": "folder" or "file",
+# - "ignore": ignores timestamp and uses "directory" and "mask" as is
+# - "file": appends timestamp after "mask" for each saved file
+# - "folder": creates folder with timestamp name and saves everything there
+# "imageExtension": used specifically for images
+output:
+  directory: "./output/"
+  mask: test
+  useTimestamp: file
+  imageExtension: png
+# some functions might use additional keyword-arguments
+# we can pass them through "misc" dictionary
+# "init_res": file name of the init stage result which is to be reused (without .npz)
+# - "ignore": go through init stage from scratch
+misc:
+  param_to_index:
+    w: 0
+    a: 1
+    b: 2
+    r: 3
+  start_eq: [0.0, 2.30956058, 4.75652024]
+  init_res: ignore
+  threads_per_block: 512
+  plot_params:
+    font_size: 15

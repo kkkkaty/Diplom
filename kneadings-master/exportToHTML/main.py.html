@@ -1,0 +1,43 @@
+<html>
+<head>
+<title>main.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+main.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">os</span>
+<span class="s0">import </span><span class="s1">sys</span>
+
+<span class="s1">sys</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">dirname</span><span class="s2">(</span><span class="s1">__file__</span><span class="s2">), </span><span class="s3">'lib/computation_template'</span><span class="s2">))</span>
+
+<span class="s0">import </span><span class="s1">src</span><span class="s2">.</span><span class="s1">computing</span><span class="s2">.</span><span class="s1">workers_kneadings_pendulums </span><span class="s0">as </span><span class="s1">wrk</span>
+<span class="s0">import </span><span class="s1">src</span><span class="s2">.</span><span class="s1">computing</span><span class="s2">.</span><span class="s1">engines_kneadings_fbpo </span><span class="s0">as </span><span class="s1">engine</span>
+<span class="s0">from </span><span class="s1">lib</span><span class="s2">.</span><span class="s1">computation_template</span><span class="s2">.</span><span class="s1">engine </span><span class="s0">import </span><span class="s1">workflow</span><span class="s2">, </span><span class="s1">getConfiguration</span><span class="s2">, </span><span class="s1">parseArguments</span>
+
+<span class="s1">ENGINE_REGISTRY </span><span class="s2">= {</span><span class="s3">'kneadings_pendulums'</span><span class="s2">: </span><span class="s1">engine</span><span class="s2">.</span><span class="s1">general_engine</span><span class="s2">}</span>
+
+<span class="s0">if </span><span class="s1">__name__ </span><span class="s2">== </span><span class="s3">&quot;__main__&quot;</span><span class="s2">:</span>
+    <span class="s1">parseArguments</span><span class="s2">(</span><span class="s1">sys</span><span class="s2">.</span><span class="s1">argv</span><span class="s2">)</span>
+    <span class="s1">configDict </span><span class="s2">= </span><span class="s1">getConfiguration</span><span class="s2">(</span><span class="s1">sys</span><span class="s2">.</span><span class="s1">argv</span><span class="s2">[</span><span class="s4">1</span><span class="s2">])</span>
+    <span class="s1">taskName </span><span class="s2">= </span><span class="s1">configDict</span><span class="s2">[</span><span class="s3">'task'</span><span class="s2">]</span>
+    <span class="s1">initFunc </span><span class="s2">= </span><span class="s1">wrk</span><span class="s2">.</span><span class="s1">registry</span><span class="s2">[</span><span class="s3">'init'</span><span class="s2">][</span><span class="s1">taskName</span><span class="s2">]</span>
+    <span class="s1">worker </span><span class="s2">= </span><span class="s1">wrk</span><span class="s2">.</span><span class="s1">registry</span><span class="s2">[</span><span class="s3">'worker'</span><span class="s2">][</span><span class="s1">taskName</span><span class="s2">]</span>
+    <span class="s1">engine </span><span class="s2">= </span><span class="s1">ENGINE_REGISTRY</span><span class="s2">[</span><span class="s1">taskName</span><span class="s2">]</span>
+    <span class="s1">postProcess </span><span class="s2">= </span><span class="s1">wrk</span><span class="s2">.</span><span class="s1">registry</span><span class="s2">[</span><span class="s3">'post'</span><span class="s2">][</span><span class="s1">taskName</span><span class="s2">]</span>
+    <span class="s0">def </span><span class="s1">gridMaker</span><span class="s2">(</span><span class="s1">configDict</span><span class="s2">): </span><span class="s0">pass</span>
+    <span class="s1">workflow</span><span class="s2">(</span><span class="s1">configDict</span><span class="s2">, </span><span class="s1">initFunc</span><span class="s2">, </span><span class="s1">gridMaker</span><span class="s2">, </span><span class="s1">worker</span><span class="s2">, </span><span class="s1">engine</span><span class="s2">, </span><span class="s1">postProcess</span><span class="s2">)</span>
+
+</pre>
+</body>
+</html>
