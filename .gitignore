@@ -1,0 +1,13 @@
+/.idea
+/__pycache__
+/src/mapping/__pycache__
+/src/system_analysis/__pycache__
+src/cuda_sweep/sweep_trese.npz
+src/cuda_sweep/sweep_fbpo.npz
+src/system_analysis/inits.npz
+src/system_analysis/inits1.npz
+/tests/__pycache__
+/src/computing/__pycache__
+/src/cuda_sweep/__pycache__
+/output
+/input
