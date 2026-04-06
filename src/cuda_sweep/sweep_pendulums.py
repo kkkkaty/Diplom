@@ -91,12 +91,12 @@ def crossed_pos_to_neg(a_prev, a_curr):
 # Event symbols 0..7:
 #  0 max fi1  : v1 + -> -
 #  1 min fi1  : v1 - -> +
-#  2 jump up  : cos(fi1/2) - -> +
-#  3 jump down: cos(fi1/2) + -> -
+#  2 jump up  : -sin(fi1) - -> + и cos(fi1/2) меняет знак
+#  3 jump down: -sin(fi1) + -> - и cos(fi1/2) меняет знак
 #  4 max fi2  : v2 + -> -
 #  5 min fi2  : v2 - -> +
-#  6 jump up  : cos(fi2/2) - -> +
-#  7 jump down: cos(fi2/2) + -> -
+#  6 jump up  : -sin(fi2) - -> + и cos(fi2/2) меняет знак
+#  7 jump down: -sin(fi2) + -> - и cos(fi2/2) меняет знак
 
 @cuda.jit(device=True)
 def detect_event(y_prev, y_curr, out_evt):
@@ -115,6 +115,14 @@ def detect_event(y_prev, y_curr, out_evt):
     c2_prev = np.cos(0.5 * y_prev[2])
     c2_curr = np.cos(0.5 * y_curr[2])
 
+    s1_prev = -np.sin(y_prev[0]) # -sin(fi1) в предыдущий момент
+    s1_curr = -np.sin(y_curr[0]) # -sin(fi1) сейчас
+    s2_prev = -np.sin(y_prev[2])
+    s2_curr = -np.sin(y_curr[2])
+
+    cross1 = crossed_neg_to_pos(c1_prev, c1_curr) or crossed_pos_to_neg(c1_prev, c1_curr) #cos(fi1/2) меняет знак
+    cross2 = crossed_neg_to_pos(c2_prev, c2_curr) or crossed_pos_to_neg(c2_prev, c2_curr)
+
     #ивенты для fi1
     #скорость была положительной, стала отрицательной
     if (v1_prev > EPS) and (v1_curr < -EPS):
@@ -126,13 +134,13 @@ def detect_event(y_prev, y_curr, out_evt):
         out_evt[0] = 1
         out_evt[1] = 1
         return
-    #cos(fi1/2) в предыдущий момент был отрицательный, а в текущий момент стал положительный
-    if crossed_neg_to_pos(c1_prev, c1_curr):
+    #-sin(fi1) в предыдущий момент был отрицательный, а в текущий момент стал положительный и cos(fi1/2) сменил знак
+    if cross1 and (s1_prev < -EPS) and (s1_curr > EPS):
         out_evt[0] = 1
         out_evt[1] = 2
         return
-    # cos(fi1/2) в предыдущий момент был положительный, а в текущий момент стал отрицательный
-    if crossed_pos_to_neg(c1_prev, c1_curr):
+    # -sin(fi1) в предыдущий момент был положительный, а в текущий момент стал отрицательный и cos(fi1/2) сменил знак
+    if cross1 and (s1_prev > EPS) and (s1_curr < -EPS):
         out_evt[0] = 1
         out_evt[1] = 3
         return
@@ -146,11 +154,11 @@ def detect_event(y_prev, y_curr, out_evt):
         out_evt[0] = 1
         out_evt[1] = 5
         return
-    if crossed_neg_to_pos(c2_prev, c2_curr):
+    if cross2 and (s2_prev < -EPS) and (s2_curr > EPS):
         out_evt[0] = 1
         out_evt[1] = 6
         return
-    if crossed_pos_to_neg(c2_prev, c2_curr):
+    if cross2 and (s2_prev > EPS) and (s2_curr < -EPS):
         out_evt[0] = 1
         out_evt[1] = 7
         return

@@ -5,96 +5,142 @@ import matplotlib.pyplot as plt
 from lib.computation_template.workers_utils import register, makeFinalOutname
 from src.cuda_sweep.sweep_pendulums import sweep, PARAM_TO_INDEX
 from src.mapping.plot_kneadings import plot_mode_map, set_random_color_map
+from src.system_analysis.get_inits import build_inits_on_parameter_grid_with_shape
 
 registry = {
-    "worker": {},
-    "init": {},
-    "post": {}
+    "worker": {}, #основные вычислительные функции
+    "init": {}, #функции подготовки начальных данных
+    "post": {} #функции постобработки результатов
 }
 
-#восстанавливает из float x строку цифр 0,...,7 длины length
+
+# восстанавливает из float x строку цифр 0,...,7 длины length
 def decode_base8_weighted(x: float, length: int) -> str:
-    """
-    x = sum(d_i / 8^(length-i)), d_i in {0..7}
-    Возвращает строку из length цифр 0..7.
-    """
     if x < 0:
         return str(x)  # для -0.1/-0.2/-0.3
-
     s = []
     v = float(x)
-
     for _ in range(length):
-        v *= 8.0 #умножили на 8, целая часть стала следующей цифрой. остаток дроби оставляем на след шаг
-        d = int(v + 1e-12) #1e-12 слегка подталкивает число вверх, снижая риск ошибок
-        #защита от погрешностей
+        v *= 8.0
+        d = int(v + 1e-12)
         if d < 0:
             d = 0
         if d > 7:
             d = 7
-        s.append(str(d)) #добавляем цифру как символ
-        v -= d #удаляем целую часть, оставляем дробную
-    return "".join(s) #склеиваем список символов в строку
+        s.append(str(d))
+        v -= d
+    return "".join(s)
 
-#строит двумерную сетку значений двух параметров x и y, но хранит её в виде двух одномерных массивов params_x и params_y
+
+# строит двумерную сетку значений двух параметров x и y,
+# но хранит её в виде двух одномерных массивов params_x и params_y
 def _generate_parameters_2d(
-    start_x, #центральные значения параметров, вокруг которых строится сетка
+    start_x,
     start_y,
-    up_n,  #сколько точек вверх и вниз от центра
+    up_n,
     down_n,
-    left_n, #сколько точек влево и вправо от центра
+    left_n,
     right_n,
-    up_step, #размер шага
+    up_step,
     down_step,
     left_step,
     right_step,
 ):
-    """
-    Генерация массивов params_x/params_y в том же порядке индексов,
-    как в остальном проекте: index = i + j*(left_n+right_n+1)
-    """
-    cols = left_n + right_n + 1 #число столбцов по x (+1 так как есть центральная точка)
-    rows = up_n + down_n + 1 #число рядов по y (+1 так как есть центральная точка)
-    total = cols * rows #общее число точек сетки
+    cols = left_n + right_n + 1
+    rows = up_n + down_n + 1
+    total = cols * rows
 
-    #создание массивов нужного размера. тут мусор, но так быстрее, чем с нулями zeros()
     params_x = np.empty(total, dtype=np.float64)
     params_y = np.empty(total, dtype=np.float64)
 
     for j in range(rows):
         for i in range(cols):
-            idx = i + j * cols #массив устроен как строки подряд  (сначала идут все i для j=0, потом все i для j=1 и тд)
+            idx = i + j * cols
 
-            di = i - left_n #сколько шагов влево или вправо от центра
-            dj = j - down_n #сколько шагов вниз или вверх от центра
-            # смещение относительно центра (left_n, down_n)
-            dx = di * (right_step if di > 0 else left_step) #если di больше нуля, делаем шаги право, иначе влево
+            di = i - left_n
+            dj = j - down_n
+
+            dx = di * (right_step if di > 0 else left_step)
             dy = dj * (up_step if dj > 0 else down_step)
 
-            #реальные координаты точек в пространстве параметров
             params_x[idx] = start_x + dx
             params_y[idx] = start_y + dy
 
     return params_x, params_y
 
 
-#инит стадия для моей задачи (подготовительная)
+#Проверяет, что базовые параметры системы положительны.
+def _validate_positive_default_system(gamma: float, lam: float, k: float) -> None:
+    bad = []
+    if gamma <= 0:
+        bad.append(f"gamma={gamma}")
+    if lam <= 0:
+        bad.append(f"lambda={lam}")
+    if k <= 0:
+        bad.append(f"k={k}")
+    if bad:
+        raise ValueError(
+            "Параметры системы должны быть строго положительными: "
+            + ", ".join(bad)
+        )
+
+
+#Помечает как пропущенные все точки сетки, где хотя бы один из параметров gamma, lambda, k <= 0.
+def _append_nonpositive_param_points(
+    nones: np.ndarray,
+    params_x: np.ndarray,
+    params_y: np.ndarray,
+    param_x_name: str,
+    param_y_name: str,
+    gamma: float,
+    lam: float,
+    k: float,
+) -> np.ndarray:
+    total = len(params_x)
+    invalid_idx = []
+    for idx in range(total):
+        curr_gamma = gamma
+        curr_lam = lam
+        curr_k = k
+        if param_x_name == "gamma":
+            curr_gamma = params_x[idx]
+        elif param_x_name == "lambda":
+            curr_lam = params_x[idx]
+        elif param_x_name == "k":
+            curr_k = params_x[idx]
+        if param_y_name == "gamma":
+            curr_gamma = params_y[idx]
+        elif param_y_name == "lambda":
+            curr_lam = params_y[idx]
+        elif param_y_name == "k":
+            curr_k = params_y[idx]
+        if curr_gamma <= 0 or curr_lam <= 0 or curr_k <= 0:
+            invalid_idx.append(idx)
+    if not invalid_idx:
+        return nones
+    invalid_idx = np.asarray(invalid_idx, dtype=np.int32)
+    if nones.size == 0:
+        return invalid_idx
+    return np.unique(np.concatenate([nones, invalid_idx])).astype(np.int32)
+
+
 @register(registry, "init", "kneadings_pendulums")
 def init_kneadings_pendulums(config, timeStamp):
     """
-    создаём:
+    Создаём:
       - inits: 4D начальные условия для каждой точки сетки
       - params_x/params_y: значения параметров по сетке
+      - nones: индексы точек, где старт не построен или параметры запрещены
     """
-
-    #извлечение параметров системы по умолчанию из конфига
     def_sys = config["defaultSystem"]
     gamma = float(def_sys["gamma"])
     lam = float(def_sys["lambda"])
     k = float(def_sys["k"])
 
-    # извлечение параметров сетки из конфига
+    _validate_positive_default_system(gamma, lam, k)
+
     grid = config["grid"]
+
     up_n = int(grid["second"]["up_n"])
     up_step = float(grid["second"]["up_step"])
     down_n = int(grid["second"]["down_n"])
@@ -105,57 +151,24 @@ def init_kneadings_pendulums(config, timeStamp):
     right_n = int(grid["first"]["right_n"])
     right_step = float(grid["first"]["right_step"])
 
-    #вычисление размеров сетки
     cols = left_n + right_n + 1
     rows = up_n + down_n + 1
     total = cols * rows
 
-    #проверка наличия начальных условий в конфиге
-    if "inits" not in config:
-        raise KeyError("Config must contain 'inits' section with fi1, v1, fi2, v2")
+    init_mode = config.get("init_mode", "manual")
+    eq_points = None
 
-    init_cfg = config["inits"] #получаем словарь с начальными условиями
-    required_keys = ("fi1", "v1", "fi2", "v2") #определяем обязательные ключи
-    #для каждого обязательного ключа определяем, есть ли он в словаре
-    for key in required_keys:
-        if key not in init_cfg:
-            raise KeyError(f"Missing initial condition '{key}' in config['inits']")
-
-    #извлечение начальных условий
-    fi1_0 = float(init_cfg["fi1"])
-    v1_0 = float(init_cfg["v1"])
-    fi2_0 = float(init_cfg["fi2"])
-    v2_0 = float(init_cfg["v2"])
-
-    # создание массива начальных условий [fi1, v1, fi2, v2] для каждой точки сетки
-    """
-    как это выглядит в памяти?
-    inits = [
-        fi1_0, v1_0, fi2_0, v2_0,  # точка 1
-        fi1_0, v1_0, fi2_0, v2_0,  # точка 2
-        fi1_0, v1_0, fi2_0, v2_0,  # точка 3
-        ...  # и так для всех 361,201 точек
-    ]
-    """
-    inits = np.array([fi1_0, v1_0, fi2_0, v2_0] * total, dtype=np.float64)
-
-    nones = np.array([], dtype=np.int32) #запасной массив для пропущенных точек
-
-    #определение имен параметров
     param_x_name = grid["first"]["name"]
     param_y_name = grid["second"]["name"]
 
-    #словарь начальных значений параметров
     start_vals = {"gamma": gamma, "lambda": lam, "k": k}
 
-    #проверяет, есть ли 1 и 2 параметры в списке допустимых
     if param_x_name not in start_vals or param_y_name not in start_vals:
         raise KeyError(
             f"grid.first.name / grid.second.name must be in {list(start_vals.keys())}, "
             f"got: {param_x_name}, {param_y_name}"
         )
 
-    #генерация сетки параметров
     params_x, params_y = _generate_parameters_2d(
         start_vals[param_x_name],
         start_vals[param_y_name],
@@ -169,36 +182,108 @@ def init_kneadings_pendulums(config, timeStamp):
         right_step,
     )
 
+    # заранее исключаем точки с неположительными параметрами
+    nones = np.array([], dtype=np.int32)
+    nones = _append_nonpositive_param_points(
+        nones=nones,
+        params_x=params_x,
+        params_y=params_y,
+        param_x_name=param_x_name,
+        param_y_name=param_y_name,
+        gamma=gamma,
+        lam=lam,
+        k=k,
+    )
+
+    if init_mode == "manual":
+        init_cfg = config["inits"]
+
+        fi1_0 = float(init_cfg["fi1"])
+        v1_0 = float(init_cfg["v1"])
+        fi2_0 = float(init_cfg["fi2"])
+        v2_0 = float(init_cfg["v2"])
+
+        y0 = np.array([fi1_0, v1_0, fi2_0, v2_0], dtype=np.float64)
+        inits = np.array(y0.tolist() * total, dtype=np.float64)
+
+    elif init_mode == "separatrix":
+        sep_cfg = config["separatrix_init"]
+
+        saddle_focus_rule = sep_cfg.get("saddle_focus_rule", "phi1_lt_phi2")
+        branch_rule = sep_cfg.get("branch_rule", "phi1_above_eq")
+        offset_index = int(sep_cfg.get("offset_index", 1))
+
+        def_params = np.array([gamma, lam, k], dtype=np.float64)
+
+        inits, sep_nones, eq_points = build_inits_on_parameter_grid_with_shape(
+            params_x=params_x,
+            params_y=params_y,
+            def_params=def_params,
+            param_x_name=param_x_name,
+            param_y_name=param_y_name,
+            param_to_index=PARAM_TO_INDEX,
+            cols=cols,
+            rows=rows,
+            center_i=left_n,
+            center_j=down_n,
+            saddle_focus_rule=saddle_focus_rule,
+            branch_rule=branch_rule,
+            offset_index=offset_index,
+            eps_shift=1e-6,
+            dt_sep=1e-3,
+            steps_sep=2000,
+        )
+
+        if nones.size == 0:
+            nones = sep_nones
+        elif sep_nones.size != 0:
+            nones = np.unique(np.concatenate([nones, sep_nones])).astype(np.int32)
+
+        print(f"INIT GRID FROM SEPARATRIX was built, failed points: {len(nones)}")
+
+        if eq_points is not None:
+            print("FIRST 5 EQ POINTS:")
+            shown = 0
+            for i, eq in enumerate(eq_points):
+                if eq is not None:
+                    print(i, eq)
+                    shown += 1
+                if shown == 5:
+                    break
+
+    else:
+        raise ValueError(f"Unknown init_mode: {init_mode}")
+
+    print("FIRST 5 INIT POINTS:")
+    for i in range(min(5, total)):
+        print(i, inits[4 * i:4 * i + 4])
+
     return {
-        "inits": inits, #начальные условия для всех точек
-        "nones": nones, #пустой массив
-        "params_x": params_x, #значения первого параметра
-        "params_y": params_y, #значения первого параметра
-        "targetDir": config["output"]["directory"], #куда сохранять результаты (берет из конфига)
+        "inits": inits,
+        "nones": nones,
+        "params_x": params_x,
+        "params_y": params_y,
+        "targetDir": config["output"]["directory"],
+        "def_params": np.array([gamma, lam, k], dtype=np.float64),
+        "eq_points": eq_points,
     }
 
 
-#воркер стадия для моей задачи (главный вычислительный этап, берет уже подготовленные начальные условия)
 @register(registry, "worker", "kneadings_pendulums")
 def worker_kneadings_pendulums(config, initResult, timeStamp):
-    # извлечение параметров системы по умолчанию из конфига
-    def_sys = config["defaultSystem"]
-    gamma = float(def_sys["gamma"])
-    lam = float(def_sys["lambda"])
-    k = float(def_sys["k"])
-    #создает массив фиксированных параметров
-    def_params = np.array([gamma, lam, k], dtype=np.float64)
+    def_params = initResult["def_params"]
 
-    #извлечение параметров сетки
+    print("INIT GRID SIZE:", len(initResult["inits"]) // 4)
+    print("NUM FAILED INIT POINTS:", len(initResult["nones"]))
+
     grid = config["grid"]
     left_n = int(grid["first"]["left_n"])
     right_n = int(grid["first"]["right_n"])
     up_n = int(grid["second"]["up_n"])
     down_n = int(grid["second"]["down_n"])
-    param_x_name = grid["first"]["name"] #имена сканируемых параметров
+    param_x_name = grid["first"]["name"]
     param_y_name = grid["second"]["name"]
 
-    #извелечение параметров интегрирования
     knead_cfg = config["kneadings_pendulums"]
     dt = float(knead_cfg["dt"])
     n = int(knead_cfg["n"])
@@ -206,16 +291,15 @@ def worker_kneadings_pendulums(config, initResult, timeStamp):
     kneadings_start = int(knead_cfg["kneadings_start"])
     kneadings_end = int(knead_cfg["kneadings_end"])
 
-    #получение данных из инициализации
-    inits = initResult["inits"] #начальные условия для всех точек
-    nones = initResult["nones"] #пустой массив
-    params_x = initResult["params_x"] #значения первого параметра
-    params_y = initResult["params_y"] #значения второго параметра
+    inits = initResult["inits"]
+    nones = initResult["nones"]
+    params_x = initResult["params_x"]
+    params_y = initResult["params_y"]
 
-    #форматирует весь конфиг в строку для текстового файла
     kneadings_records = pprint.pformat(config) + "\n\n"
+    kneadings_records += f"INIT GRID SIZE: {len(inits) // 4}\n"
+    kneadings_records += f"NUM FAILED INIT POINTS: {len(nones)}\n\n"
 
-    #CUDA вычисления
     kneadings_weighted_sum_set = sweep(
         inits=inits,
         nones=nones,
@@ -236,47 +320,38 @@ def worker_kneadings_pendulums(config, initResult, timeStamp):
         kneadings_end=kneadings_end,
     )
 
-    total = (left_n + right_n + 1) * (up_n + down_n + 1) #количество точек в сетке
-    seq_len = kneadings_end - kneadings_start + 1 #сколько символов в нидинге нужно восстановить
+    total = (left_n + right_n + 1) * (up_n + down_n + 1)
+    seq_len = kneadings_end - kneadings_start + 1
 
-    #обработка результатов
     for idx in range(total):
-        val = float(kneadings_weighted_sum_set[idx]) # получаем "упакованное" число val
-        knead_sym = decode_base8_weighted(val, seq_len) #число val в виде строки 0123 длины seq_len
-        #формируется строка с результатами. line = "gamma: 0.970000000000000, k: 0.060000000000000 => 01234567"
+        val = float(kneadings_weighted_sum_set[idx])
+        knead_sym = decode_base8_weighted(val, seq_len)
+
         line = (
             f"{param_x_name}: {params_x[idx]:.15f}, "
             f"{param_y_name}: {params_y[idx]:.15f} => "
             f"{knead_sym}"
         )
 
-        # печать в консоль
         print(line)
-
-        # запись в файл txt
         kneadings_records += f"{line} (Raw: {val})\n"
 
-    #возвращает числовой массив (для дальнейшей обработки) и текстовые записи (для сохранения в файл)
     return {
         "kneadings_weighted_sum_set": kneadings_weighted_sum_set,
         "kneadings_records": kneadings_records,
     }
 
 
-#этап пост обработки для моей задачи (берет то, что уже посчитано в воркере)
 @register(registry, "post", "kneadings_pendulums")
 def post_kneadings_pendulums(config, initResult, workerResult, grid, startTime):
-    #достает фиксированные параметры для заголовков графиков
     def_sys = config["defaultSystem"]
     gamma = float(def_sys["gamma"])
     lam = float(def_sys["lambda"])
     k = float(def_sys["k"])
 
-    #настройка визуализации
     plot_params = config.get("misc", {}).get("plot_params", {"font_size": 12})
     font_size = int(plot_params.get("font_size", 12))
 
-    #извлечение параметров сетки для построения осей графиков
     grid_dict = config["grid"]
     up_n = int(grid_dict["second"]["up_n"])
     up_step = float(grid_dict["second"]["up_step"])
@@ -287,26 +362,24 @@ def post_kneadings_pendulums(config, initResult, workerResult, grid, startTime):
     right_n = int(grid_dict["first"]["right_n"])
     right_step = float(grid_dict["first"]["right_step"])
 
-    #получение результатов
-    kneadings_weighted_sum_set = workerResult["kneadings_weighted_sum_set"] #достает числовой массив для визуализации
-    kneadings_records = workerResult["kneadings_records"] #достает текстовые записи для файла
+    kneadings_weighted_sum_set = workerResult["kneadings_weighted_sum_set"]
+    kneadings_records = workerResult["kneadings_records"]
 
-    param_x_caption = f"{grid_dict['first']['caption']}" #подпись оси x
-    param_y_caption = f"{grid_dict['second']['caption']}" #подпись оси y
+    param_x_caption = f"{grid_dict['first']['caption']}"
+    param_y_caption = f"{grid_dict['second']['caption']}"
 
-    param_x_count = left_n + right_n + 1 #количество точек по оси x
-    param_y_count = up_n + down_n + 1 #количество точек по оси y
+    param_x_count = left_n + right_n + 1
+    param_y_count = up_n + down_n + 1
 
-    #вычисляет реальные границы осей графика
     start_vals = {"gamma": gamma, "lambda": lam, "k": k}
     param_x_name = grid_dict["first"]["name"]
     param_y_name = grid_dict["second"]["name"]
+
     param_x_start = start_vals[param_x_name] - left_n * left_step
     param_x_end = start_vals[param_x_name] + right_n * right_step
     param_y_start = start_vals[param_y_name] - down_n * down_step
     param_y_end = start_vals[param_y_name] + up_n * up_step
 
-    #построение карты режимов (каждому уникальному режиму присваивает свой цвет)
     plot_mode_map(
         kneadings_weighted_sum_set,
         set_random_color_map,
@@ -321,23 +394,17 @@ def post_kneadings_pendulums(config, initResult, workerResult, grid, startTime):
         font_size,
     )
 
-    #добавление заголовка
     plt.title(fr"$\gamma={gamma}$, $\lambda={lam}$, $k={k}$", fontsize=font_size)
 
-    #СОХРАНЕНИЕ РЕЗУЛЬТАТОВ
-
-    #NPY файл (бинарные данные)
     npy_outname = makeFinalOutname(config, initResult, "npy", startTime)
     np.save(npy_outname, kneadings_weighted_sum_set)
     print("Kneadings set successfully saved")
 
-    #TXT файл (текстовые записи)
     txt_outname = makeFinalOutname(config, initResult, "txt", startTime)
     with open(txt_outname, "w", encoding="utf-8") as f:
         f.write(kneadings_records)
     print("Kneadings records successfully saved")
 
-    #Изображение (PNG по умолчанию)
     img_extension = config["output"]["imageExtension"]
     plot_outname = makeFinalOutname(config, initResult, img_extension, startTime)
     plt.savefig(plot_outname, dpi=600, bbox_inches="tight")
