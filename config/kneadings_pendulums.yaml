@@ -43,21 +43,21 @@ defaultSystem:
 grid:
   # варьируем параметр gamma: 300 шагов влево, 300 шагов вправо, шаг 0.01
   first:
-    name: gamma
-    caption: gamma
-    left_n: 200
-    right_n: 200
-    left_step: 0.001
-    right_step: 0.001
+    name: k
+    caption: k
+    left_n: 500
+    right_n: 500
+    left_step: 0.0001
+    right_step: 0.0001
 
   # варьируем параметр k
   second:
-    name: k
-    caption: k
-    down_n: 40
-    up_n: 200
-    down_step: 0.001
-    up_step: 0.001
+    name: gamma
+    caption: gamma
+    down_n: 500
+    up_n: 500
+    down_step: 0.0001
+    up_step: 0.0001
 
 # численно интегрируется система
 kneadings_pendulums:
@@ -65,7 +65,7 @@ kneadings_pendulums:
   n: 50000
   stride: 1
   kneadings_start: 0
-  kneadings_end: 16
+  kneadings_end: 3
 
 misc:
   # сопоставляет названия параметров с индексами в массивах данных

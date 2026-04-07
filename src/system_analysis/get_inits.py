@@ -491,9 +491,9 @@ def build_inits_from_eq_grid(
     steps_sep=2000,
 ):
     total = len(params_x) #Общее число точек сетки
-    dim = 4 #Размер фазового пространства
+    #dim = 4 #Размер фазового пространства
 
-    inits = np.zeros(dim * total, dtype=np.float64) #Создаётся один длинный массив, куда будут записываться все начальные условия
+    #inits = np.zeros(dim * total, dtype=np.float64) #Создаётся один длинный массив, куда будут записываться все начальные условия
     nones = [] #Сюда будут собираться индексы точек, где построить init не удалось
     eq_points = [None] * total #Здесь будут храниться равновесия, реально использованные для построения init
     branch_ids = [None] * total #Здесь хранятся номера выбранных ветвей (+1 или -1)
@@ -532,23 +532,26 @@ def build_inits_from_eq_grid(
                     break
 
             try:
-                result = build_init_from_equilibrium( #строит: неустойчивый вектор, две ветви, локальную сепаратрису и итоговый init_point
+                info = equilibrium_type(eq, gamma, lam, k)
+
+                if not is_saddle_focus_1d_unstable(info):
+                    raise RuntimeError("Equilibrium is not a saddle-focus with 1D unstable manifold")
+
+                unstable_dir = unstable_direction_from_eq_info(info, ref_dir=ref_unstable_dir)
+
+                p_plus = eq + eps_shift * unstable_dir
+                p_minus = eq - eps_shift * unstable_dir
+
+                branch_id, _ = choose_separatrix_branch(
                     eq=eq,
-                    gamma=gamma,
-                    lam=lam,
-                    k=k,
+                    p_plus=p_plus,
+                    p_minus=p_minus,
                     branch_rule=branch_rule,
-                    offset_index=offset_index,
-                    eps_shift=eps_shift,
-                    dt_sep=dt_sep,
-                    steps_sep=steps_sep,
-                    ref_unstable_dir=ref_unstable_dir,
                 )
 
-                inits[idx * dim:(idx + 1) * dim] = result["init_point"] #Итоговая точка init_point записывается в большой массив inits
-                eq_points[idx] = result["eq_point"] #Сохраняется равновесие, из которого строили init
-                branch_ids[idx] = result["branch_id"] #Сохраняется номер ветви
-                unstable_dirs[idx] = result["unstable_dir"] #Сохраняется найденное неустойчивое направление
+                eq_points[idx] = np.array(eq, dtype=float)
+                branch_ids[idx] = int(branch_id)
+                unstable_dirs[idx] = np.array(unstable_dir, dtype=float)
 
             except Exception as e: #Если построить init не удалось, управление переходит сюда
                 nones.append(idx) #Индекс текущей точки добавляется в список неудачных
@@ -561,7 +564,12 @@ def build_inits_from_eq_grid(
                     f"{param_y_name}={params_y[idx]:.6f} -> failed: {e}"
                 )
 
-    return inits, np.array(nones, dtype=np.int32), eq_points
+    return (
+        np.array(nones, dtype=np.int32),
+        eq_points,
+        unstable_dirs,
+        branch_ids,
+    )
 
 
 # превращает сетку параметров в сетку начальных условий на 1D unstable separatrix
