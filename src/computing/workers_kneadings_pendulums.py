@@ -6,7 +6,6 @@ from lib.computation_template.workers_utils import register, makeFinalOutname
 from src.cuda_sweep.sweep_pendulums import sweep, PARAM_TO_INDEX
 from src.mapping.plot_kneadings import plot_mode_map, set_random_color_map
 from src.system_analysis.get_inits import build_inits_on_parameter_grid_with_shape
-from src.system_analysis.get_inits_cuda import build_init_points_cuda
 
 registry = {
     "worker": {}, #основные вычислительные функции
@@ -209,14 +208,13 @@ def init_kneadings_pendulums(config, timeStamp):
 
     elif init_mode == "separatrix":
         sep_cfg = config["separatrix_init"]
-
         saddle_focus_rule = sep_cfg.get("saddle_focus_rule", "phi1_lt_phi2")
         branch_rule = sep_cfg.get("branch_rule", "phi1_above_eq")
         offset_index = int(sep_cfg.get("offset_index", 1))
 
         def_params = np.array([gamma, lam, k], dtype=np.float64)
 
-        sep_nones, eq_points, unstable_dirs, branch_ids = build_inits_on_parameter_grid_with_shape(
+        inits, sep_nones, eq_points = build_inits_on_parameter_grid_with_shape(
             params_x=params_x,
             params_y=params_y,
             def_params=def_params,
@@ -232,29 +230,13 @@ def init_kneadings_pendulums(config, timeStamp):
             offset_index=offset_index,
             eps_shift=1e-6,
             dt_sep=1e-3,
-            steps_sep=2000,
+            steps_sep=1,
         )
 
         if nones.size == 0:
             nones = sep_nones
         elif sep_nones.size != 0:
             nones = np.unique(np.concatenate([nones, sep_nones])).astype(np.int32)
-
-        inits = build_init_points_cuda(
-            eq_points=eq_points,
-            unstable_dirs=unstable_dirs,
-            branch_ids=branch_ids,
-            params_x=params_x,
-            params_y=params_y,
-            def_params=def_params,
-            param_x_name=param_x_name,
-            param_y_name=param_y_name,
-            param_to_index=PARAM_TO_INDEX,
-            nones=nones,
-            offset_index=offset_index,
-            eps_shift=1e-6,
-            dt_sep=1e-3,
-        )
 
         print(f"INIT GRID FROM SEPARATRIX was built, failed points: {len(nones)}")
 

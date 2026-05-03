@@ -258,7 +258,7 @@ def build_init_from_equilibrium(
     offset_index=1, #Номер точки на короткой траектории, которую мы возьмём как init_point
     eps_shift=1e-6, #Очень маленький сдвиг от равновесия вдоль неустойчивого направления
     dt_sep=1e-3, #Шаг по времени при построении локальной сепаратрисы
-    steps_sep=2000, #Сколько шагов пройти вдоль сепаратрисы
+    steps_sep=1, #Сколько шагов пройти вдоль сепаратрисы
     ref_unstable_dir=None, #Опорное направление для согласования знака собственного вектора
 ):
     info = equilibrium_type(eq, gamma, lam, k) #Здесь вычисляется полная линейная информация о равновесии (якобиан, сч, св, число устойч и неустойч направл)
@@ -317,7 +317,7 @@ def build_separatrix_init_for_point(
     offset_index=1,
     eps_shift=1e-6,
     dt_sep=1e-3,
-    steps_sep=2000,
+    steps_sep=1,
     prev_eq=None, #Если задано предыдущее равновесие, то новое выбирается как ближайшее к нему
     ref_unstable_dir=None,
 ):
@@ -488,12 +488,12 @@ def build_inits_from_eq_grid(
     offset_index=1,
     eps_shift=1e-6,
     dt_sep=1e-3,
-    steps_sep=2000,
+    steps_sep=1,
 ):
     total = len(params_x) #Общее число точек сетки
-    #dim = 4 #Размер фазового пространства
+    dim = 4 #Размер фазового пространства
 
-    #inits = np.zeros(dim * total, dtype=np.float64) #Создаётся один длинный массив, куда будут записываться все начальные условия
+    inits = np.zeros(dim * total, dtype=np.float64) #Создаётся один длинный массив, куда будут записываться все начальные условия
     nones = [] #Сюда будут собираться индексы точек, где построить init не удалось
     eq_points = [None] * total #Здесь будут храниться равновесия, реально использованные для построения init
     branch_ids = [None] * total #Здесь хранятся номера выбранных ветвей (+1 или -1)
@@ -532,26 +532,15 @@ def build_inits_from_eq_grid(
                     break
 
             try:
-                info = equilibrium_type(eq, gamma, lam, k)
+                result = build_init_from_equilibrium(
+                    eq=eq, gamma=gamma, lam=lam, k=k, branch_rule=branch_rule,
+                    offset_index=offset_index, eps_shift=eps_shift, dt_sep=dt_sep,
+                    steps_sep=steps_sep, ref_unstable_dir=ref_unstable_dir, )
 
-                if not is_saddle_focus_1d_unstable(info):
-                    raise RuntimeError("Equilibrium is not a saddle-focus with 1D unstable manifold")
-
-                unstable_dir = unstable_direction_from_eq_info(info, ref_dir=ref_unstable_dir)
-
-                p_plus = eq + eps_shift * unstable_dir
-                p_minus = eq - eps_shift * unstable_dir
-
-                branch_id, _ = choose_separatrix_branch(
-                    eq=eq,
-                    p_plus=p_plus,
-                    p_minus=p_minus,
-                    branch_rule=branch_rule,
-                )
-
-                eq_points[idx] = np.array(eq, dtype=float)
-                branch_ids[idx] = int(branch_id)
-                unstable_dirs[idx] = np.array(unstable_dir, dtype=float)
+                inits[idx * dim:(idx + 1) * dim] = result["init_point"]
+                eq_points[idx] = result["eq_point"]
+                branch_ids[idx] = result["branch_id"]
+                unstable_dirs[idx] = result["unstable_dir"]
 
             except Exception as e: #Если построить init не удалось, управление переходит сюда
                 nones.append(idx) #Индекс текущей точки добавляется в список неудачных
@@ -564,12 +553,7 @@ def build_inits_from_eq_grid(
                     f"{param_y_name}={params_y[idx]:.6f} -> failed: {e}"
                 )
 
-    return (
-        np.array(nones, dtype=np.int32),
-        eq_points,
-        unstable_dirs,
-        branch_ids,
-    )
+    return inits, np.array(nones, dtype=np.int32), eq_points
 
 
 # превращает сетку параметров в сетку начальных условий на 1D unstable separatrix
@@ -587,9 +571,9 @@ def build_inits_on_parameter_grid_with_shape(
     saddle_focus_rule="phi1_lt_phi2",
     branch_rule="phi1_above_eq",
     offset_index=1,
-    eps_shift=1e-6,
+    eps_shift=1e-4,
     dt_sep=1e-3,
-    steps_sep=2000,
+    steps_sep=1,
 ):
     eq_grid = continue_target_equilibrium_on_grid( #строит eq_grid — сетку равновесий по всем точкам параметров
         params_x=params_x,
