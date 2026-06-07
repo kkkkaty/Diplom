@@ -14,22 +14,51 @@ registry = {
 }
 
 
+def decode_regime_bits(val: float) -> str:
+    if val == 1.0: return "REGULAR (Periodic)"
+    if val == 0.0: return "CHAOS (Irregular)"
+    return f"Error/Static ({val})"
+
+def decode_attractor_full(val: float) -> str:
+    if val < -0.05:  return "Апериодичный"
+    mode_idx = int(val)
+    # Если из-за ошибки точности или перелива индекс стал 9 или больше
+    if mode_idx > 8: mode_idx = 8
+    fraction_int = int(round((val - mode_idx) * 10 ** 12))
+    n2_neg = (fraction_int // 1) % 1000
+    n2_pos = (fraction_int // 1000) % 1000
+    n1_neg = (fraction_int // 1000000) % 1000
+    n1_pos = (fraction_int // 1000000000) % 1000
+
+    types = ["Покой", "Колебания", "Вращение"]
+    t1, t2 = mode_idx // 3, mode_idx % 3
+
+    res = f"РЕЖИМ: М1={types[t1]}, М2={types[t2]} "
+    res += f"(N1: +{n1_pos}/-{n1_neg}, N2: +{n2_pos}/-{n2_neg})"
+    return res
+
+
 # восстанавливает из float x строку цифр 0,...,7 длины length
-def decode_base8_weighted(x: float, length: int) -> str:
+def decode_base25_weighted(x: float, length: int) -> str:
     if x < 0:
         return str(x)  # для -0.1/-0.2/-0.3
-    s = []
+    symbols = []
     v = float(x)
-    for _ in range(length):
-        v *= 8.0
-        d = int(v + 1e-12)
-        if d < 0:
-            d = 0
-        if d > 7:
-            d = 7
-        s.append(str(d))
-        v -= d
-    return "".join(s)
+    # С основанием 25 мы можем надежно декодировать до 10 символов подряд
+    safe_length = min(length, 10)
+    for _ in range(safe_length):
+        v *= 25.0
+        combined_symbol = int(v + 1e-11)
+        # Ограничиваем значение символа от 0 до 44
+        combined_symbol = max(0, min(24, combined_symbol))
+        # Разделяем на m1 и m2 (например, 12 -> "12", 4 -> "04")
+        m1 = combined_symbol // 5
+        m2 = combined_symbol % 5
+        # Записываем в виде "00", "12" и т.д.
+        symbols.append(f"{m1}{m2}")
+        # Оставляем только дробную часть для следующего шага
+        v -= combined_symbol
+    return " - ".join(symbols)
 
 
 # строит двумерную сетку значений двух параметров x и y,
@@ -284,6 +313,10 @@ def worker_kneadings_pendulums(config, initResult, timeStamp):
     param_y_name = grid["second"]["name"]
 
     knead_cfg = config["kneadings_pendulums"]
+    use_regime_mode = knead_cfg.get("use_regime_mode", False)
+    use_9color_mode = knead_cfg.get("use_9color_mode", False)
+    use_continuation_mode = knead_cfg.get("use_continuation_mode", False)
+
     dt = float(knead_cfg["dt"])
     n = int(knead_cfg["n"])
     stride = int(knead_cfg["stride"])
@@ -317,6 +350,9 @@ def worker_kneadings_pendulums(config, initResult, timeStamp):
         stride=stride,
         kneadings_start=kneadings_start,
         kneadings_end=kneadings_end,
+        use_regime_mode=use_regime_mode,
+        use_9color_mode=use_9color_mode,
+        use_continuation_mode=use_continuation_mode,
     )
 
     total = (left_n + right_n + 1) * (up_n + down_n + 1)
@@ -324,8 +360,13 @@ def worker_kneadings_pendulums(config, initResult, timeStamp):
 
     for idx in range(total):
         val = float(kneadings_weighted_sum_set[idx])
-        knead_sym = decode_base8_weighted(val, seq_len)
 
+        if use_9color_mode:
+            knead_sym = decode_attractor_full(val)
+        elif use_regime_mode:
+            knead_sym = decode_regime_bits(val)
+        else:
+            knead_sym = decode_base25_weighted(val, seq_len)
         line = (
             f"{param_x_name}: {params_x[idx]:.15f}, "
             f"{param_y_name}: {params_y[idx]:.15f} => "
@@ -339,6 +380,7 @@ def worker_kneadings_pendulums(config, initResult, timeStamp):
         "kneadings_weighted_sum_set": kneadings_weighted_sum_set,
         "kneadings_records": kneadings_records,
     }
+
 
 
 @register(registry, "post", "kneadings_pendulums")
@@ -379,33 +421,97 @@ def post_kneadings_pendulums(config, initResult, workerResult, grid, startTime):
     param_y_start = start_vals[param_y_name] - down_n * down_step
     param_y_end = start_vals[param_y_name] + up_n * up_step
 
+    raw_data = workerResult["kneadings_weighted_sum_set"]
+    knead_cfg = config["kneadings_pendulums"]
+    use_regime_mode = knead_cfg.get("use_regime_mode", False)
+    use_9color_mode = knead_cfg.get("use_9color_mode", False)
+
+    if use_9color_mode:
+        plot_data = np.zeros_like(raw_data)
+        plot_data[raw_data < -0.5] = 9  # Черный (Хаос)
+        mode_indices = np.floor(raw_data + 1e-10).astype(int)
+        for i in range(9):
+            mask = (raw_data >= 0) & (mode_indices == i)
+            plot_data[mask] = i
+
+        from matplotlib.colors import ListedColormap
+        # Контрастная палитра
+        colors = [
+            '#FFFFFF', # 0: S-S
+            '#FFFF00', # 1: S-L
+            '#FF6600', # 2: S-R
+            '#00FF00', # 3: L-S
+            '#006400', # 4: L-L
+            '#00FFFF', # 5: L-R
+            '#0000FF', # 6: R-S (Синий)
+            '#9b59b6', # 7: R-L (Фиолетовый)
+            '#FF00FF', # 8: R-R (Розовый)
+            '#000000', # 9: Хаос (Черный)
+        ]
+        cmap_to_use = lambda: ListedColormap(colors)
+
+    elif use_regime_mode:
+        plot_data = np.full_like(raw_data, 2)
+        plot_data[np.isclose(raw_data, 0.0, atol=1e-5)] = 1
+        plot_data[raw_data < -0.2] = 0
+        from matplotlib.colors import ListedColormap
+        cmap_to_use = lambda: ListedColormap(['red', 'black', 'white'])
+    else:
+        # unique_vals — массив уникальных значений из raw_data, отсортированных по возрастанию
+        #inverse_indices — массив той же длины, что и raw_data, где каждому элементу соответствует индекс его уникального значения
+        unique_vals, inverse_indices = np.unique(raw_data, return_inverse=True)
+        N_unique = len(unique_vals)
+
+        # нормализуем индексы на отрезок [0, 1] (потому что в plot_mode_map vmin=0, vmax=1)
+        if N_unique > 1:
+            plot_data = inverse_indices / (N_unique - 1)
+        else:
+            plot_data = np.zeros_like(raw_data)
+
+        # передаем в качестве палитры функцию генерации случайных цветов
+        cmap_to_use = set_random_color_map
+
+    # Отрисовка
+    plt.figure(figsize=(14, 9))  # Широкое окно для легенды
     plot_mode_map(
-        kneadings_weighted_sum_set,
-        set_random_color_map,
-        param_x_caption,
-        param_y_caption,
-        param_x_start,
-        param_x_end,
-        param_x_count,
-        param_y_start,
-        param_y_end,
-        param_y_count,
+        plot_data, cmap_to_use,
+        param_x_caption, param_y_caption,
+        param_x_start, param_x_end, param_x_count,
+        param_y_start, param_y_end, param_y_count,
         font_size,
     )
+
+    # Настройка легенды (Русский язык)
+    if use_9color_mode:
+        plt.clim(-0.5, 9.5)
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor='#FFFFFF', label='М1:Покой, М2:Покой'),
+            Patch(facecolor='#FFFF00', label='М1:Покой, М2:Колебания'),
+            Patch(facecolor='#FF6600', label='М1:Покой, М2:Вращение'),
+            Patch(facecolor='#00FF00', label='М1:Колебания, М2:Покой'),
+            Patch(facecolor='#006400', label='М1:Колебания, М2:Колебания'),
+            Patch(facecolor='#00FFFF', label='М1:Колебания, М2:Вращение'),
+            Patch(facecolor='#0000FF', label='М1:Вращение, М2:Покой'),
+            Patch(facecolor='#9b59b6', label='М1:Вращение, М2:Колебания'),
+            Patch(facecolor='#FF00FF', label='М1:Вращение, М2:Вращение'),
+            Patch(facecolor='#000000', label='Апериодичный режим (Хаос)'),
+        ]
+        plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left',
+                   title="Типы аттракторов", fontsize=font_size - 2)
+    elif use_regime_mode:
+        plt.clim(0, 2)
 
     plt.title(fr"$\gamma={gamma}$, $\lambda={lam}$, $k={k}$", fontsize=font_size)
 
     npy_outname = makeFinalOutname(config, initResult, "npy", startTime)
     np.save(npy_outname, kneadings_weighted_sum_set)
-    print("Kneadings set successfully saved")
 
     txt_outname = makeFinalOutname(config, initResult, "txt", startTime)
     with open(txt_outname, "w", encoding="utf-8") as f:
         f.write(kneadings_records)
-    print("Kneadings records successfully saved")
 
     img_extension = config["output"]["imageExtension"]
     plot_outname = makeFinalOutname(config, initResult, img_extension, startTime)
     plt.savefig(plot_outname, dpi=600, bbox_inches="tight")
     plt.close()
-    print("Mode map successfully saved")

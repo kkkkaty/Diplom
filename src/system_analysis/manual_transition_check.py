@@ -14,20 +14,20 @@ from src.system_analysis.analyze_separatrix_transition_pendulums_v2 import (
     find_code_transitions_on_scan,
 )
 
-config_path = r"/config/kneadings_pendulums.yaml"
+config_path = r"C:/Lobach4/Diplom/kneadings-master/config/kneadings_pendulums.yaml"
 npy_path = r"C:/Lobach4/tu/kneadings-master1/output/kneadings_pendulums1.npy"
 
 output_dir = r"C:/Lobach4/tu/kneadings-master1/output/manual_transition_check"
 
 # сюда вручную вписываем строку карты
-row_index = 416
+row_index = 396
 
 # сюда вручную вписываем две соседние точки, между которыми сменился цвет
-left_i = 662
-right_i = 663
+left_i = 598
+right_i = 599
 
 # сколько считать траекторию
-n_steps_traj = 30000
+n_steps_traj = 100000
 stride_traj = 1
 
 
@@ -78,7 +78,7 @@ result = analyze_separatrix_transition_v2(
 scan = extract_horizontal_scan(
     kneading_map_flat=kneading_map,
     config=config,
-    row_index=200,   # любую строку
+    row_index=row_index,   # теперь выведет переходы именно для анализируемой строки
 )
 
 transitions = find_code_transitions_on_scan(scan)

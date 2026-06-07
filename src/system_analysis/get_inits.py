@@ -70,9 +70,7 @@ def solve_equilibrium_from_guess(gamma, k, guess, tol=1e-12):
 
 
 def _base_asin_gamma(gamma):
-    if abs(gamma) <= 1.0:
-        return math.asin(max(-1.0, min(1.0, gamma)))
-    return 0.0
+    return math.asin(max(-1.0, min(1.0, gamma)))
 
 
 
@@ -237,15 +235,21 @@ def integrate_local_separatrix(eq, start_point, gamma, lam, k, dt_sep, steps_sep
 
     return np.array(traj, dtype=float) #Возвращаем всю траекторию как массив
 
-
 #У 1D неустойчивого направления есть две ветви. Нужно выбрать одну
-def choose_separatrix_branch(eq, p_plus, p_minus, branch_rule="phi1_above_eq"):
-    if branch_rule == "phi1_above_eq":
-        if p_plus[0] > eq[0]: #Смотрим на первую координату (fi1). если у точки p_plus угол больше, чем у равновесия, то выбираем ветвь +
-            return +1, np.array(p_plus, dtype=float) #+1 — идентификатор ветви. возвращаем p_plus
-        return -1, np.array(p_minus, dtype=float) #берём противоположную ветвь
+def choose_separatrix_branch(eq, p_plus, p_minus, branch_rule="phi2_above_eq"):
+    # Новое стабильное правило по второй координате (phi2)
+    if branch_rule == "phi2_above_eq":
+        if p_plus[2] > eq[2]: # индекс 2 — это phi2
+            return +1, np.array(p_plus, dtype=float)
+        return -1, np.array(p_minus, dtype=float)
 
-    raise ValueError(f"Unknown branch_rule: {branch_rule}") #Если правило неизвестно — ошибка
+    #Смотрим на первую координату (fi1). если у точки p_plus угол больше, чем у равновесия, то выбираем ветвь +
+    if branch_rule == "phi1_above_eq":
+        if p_plus[0] > eq[0]:
+            return +1, np.array(p_plus, dtype=float)
+        return -1, np.array(p_minus, dtype=float)
+
+    raise ValueError(f"Unknown branch_rule: {branch_rule}")
 
 
 #начальное условие для запуска траектории по неустойчивой сепаратрисе

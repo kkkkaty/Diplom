@@ -4,9 +4,7 @@ import numpy as np
 from src.mapping.events_pendulums import detect_event_0_7
 
 
-# -----------------------------
-# ПАРАМЕТРЫ (можешь менять)
-# -----------------------------
+
 gamma = 0.8
 lam = 0.1
 k = 0.2

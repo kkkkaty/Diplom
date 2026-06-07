@@ -24,7 +24,7 @@ def parseArguments(argv):
 def getConfiguration(configPath):
     assert os.path.isfile(configPath), f"Configuration file {os.path.abspath(configPath)} does not exist!"
 
-    with open(configPath, 'r') as f:
+    with open(configPath, "r", encoding="utf-8") as f:
         configDictionary = yaml.load(f, Loader=yaml.loader.SafeLoader)
 
     return configDictionary

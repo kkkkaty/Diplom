@@ -1,13 +1,16 @@
 import os
 import sys
 
+
 sys.path.append(os.path.join(os.path.dirname(__file__), 'lib/computation_template'))
 
 import src.computing.workers_kneadings_pendulums as wrk
 import src.computing.engines_kneadings_fbpo as engine
 from lib.computation_template.engine import workflow, getConfiguration, parseArguments
+import src.computing.workers_attractor_classification as wrk_attractor
 
-ENGINE_REGISTRY = {'kneadings_pendulums': engine.general_engine}
+ENGINE_REGISTRY = {'kneadings_pendulums': engine.general_engine,
+                   'attractor_classification': engine.general_engine}
 
 if __name__ == "__main__":
     parseArguments(sys.argv)

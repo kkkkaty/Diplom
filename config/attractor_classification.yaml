@@ -1,0 +1,78 @@
+# Конфигурация для 9-цветной карты типов аттракторов (Stat/Lib/Rot)
+
+task: kneadings_pendulums
+
+# Режим старта:
+# Используем separatrix, чтобы анализировать глобальную структуру
+# (поведение неустойчивого многообразия седло-фокуса)
+init_mode: separatrix
+
+# Настройки автоматического старта с сепаратрисы
+separatrix_init:
+  saddle_focus_rule: phi1_lt_phi2
+  branch_rule: phi2_above_eq
+  offset_index: 1
+  # Базовые параметры, относительно которых строится сетка
+  base_params:
+    gamma: 0.99
+    lambda: 0.2
+    k: 0.99
+
+# Центральные параметры системы (центр карты)
+defaultSystem:
+  gamma: 0.02
+  lambda: 0.02
+  k: 0.2
+
+# Описание сетки параметров
+grid:
+  # Горизонтальная ось: коэффициент связи k
+  first:
+    name: lambda
+    caption: "lambda"
+    left_n: 100
+    right_n: 100
+    left_step: 0.0005
+    right_step: 0.0005
+
+  # Вертикальная ось: внешнее воздействие gamma
+  second:
+    name: gamma
+    caption: "gamma"
+    down_n: 100
+    up_n: 100
+    down_step: 0.0005
+    up_step: 0.0005
+
+# Настройки вычислительного ядра (CUDA)
+kneadings_pendulums:
+  dt: 0.01
+  # Увеличиваем n до 3.5 млн, чтобы гарантированно пройти транзиенты
+  # и накопить статистику для классификации
+  n: 5000000
+  stride: 1
+  # Начинаем анализ только после 15 000 событий, чтобы забыть старт
+  kneadings_start: 100000
+  # Собираем окно в 2000 событий для поиска периода и типа движения
+  kneadings_end: 3000
+
+  use_continuation_mode: True #протягивение аттрактора
+  use_9color_mode: True   # ВКЛЮЧАЕМ РЕЖИМ 10 ЦВЕТОВ (Stat/Lib/Rot)
+  use_regime_mode: False  # Отключаем ЧБ режим
+
+misc:
+  param_to_index:
+    gamma: 0
+    lambda: 1
+    k: 2
+  plot_params:
+    font_size: 14
+
+output:
+  # Путь к папке (проверь, чтобы он существовал)
+  directory: "C:/Lobach4/tu/kneadings-master1/output/attractor_maps"
+  mask: "attractor_map_9color"
+  imageExtension: png
+  useTimestamp: true
+  overwrite: false
+  makeSubdir: false

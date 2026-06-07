@@ -31,7 +31,7 @@ fast_hits = find_interesting_transitions_fast(
     output_dir=fast_dir,
     row_step=1,
     max_results=3000,
-    n_steps_traj=3000,
+    n_steps_traj=20000,
     stride_traj=1,
 )
 
@@ -53,8 +53,8 @@ refined_hits = refine_interesting_transitions(
     kneading_map_flat=kneading_map,
     coarse_hits=fast_hits,
     output_dir=refined_dir,
-    max_results=3,
-    n_steps_traj=30000,
+    max_results=5,
+    n_steps_traj=20000,
     stride_traj=1,
 )
 

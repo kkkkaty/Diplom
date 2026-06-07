@@ -15,8 +15,8 @@ def detect_event_0_7(prev_state, curr_state) -> int:
         0..7 — если событие произошло
         -1   — если нет
     События:
-        0: max fi1   : v1 + -> -
-        1: min fi1   : v1 - -> +
+            0: max fi1   : v1 + -> -
+            1: min fi1   : v1 - -> +
         2: jump up   : -sin(fi1) - -> + и cos(fi1/2) меняет знак
         3: jump down : -sin(fi1) + -> - и cos(fi1/2) меняет знак
         4: max fi2   : v2 + -> -
