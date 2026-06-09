@@ -54,8 +54,8 @@ def decode_base25_weighted(x: float, length: int) -> str:
         # Разделяем на m1 и m2 (например, 12 -> "12", 4 -> "04")
         m1 = combined_symbol // 5
         m2 = combined_symbol % 5
-        # Записываем в виде "00", "12" и т.д.
-        symbols.append(f"{m1}{m2}")
+        # Записываем сам индекс совместного события от 00 до 24
+        symbols.append(f"{combined_symbol:02d}")
         # Оставляем только дробную часть для следующего шага
         v -= combined_symbol
     return " - ".join(symbols)
@@ -278,6 +278,31 @@ def init_kneadings_pendulums(config, timeStamp):
                     shown += 1
                 if shown == 5:
                     break
+
+     # ДОБАВЛЯЕМ НОВЫЙ БЛОК:
+    elif init_mode == "stable_equilibrium":
+        from src.system_analysis.get_inits import build_stable_inits_on_parameter_grid_with_shape
+        def_params = np.array([gamma, lam, k], dtype=np.float64)
+
+        inits, sep_nones, eq_points = build_stable_inits_on_parameter_grid_with_shape(
+            params_x=params_x,
+            params_y=params_y,
+            def_params=def_params,
+            param_x_name=param_x_name,
+            param_y_name=param_y_name,
+            param_to_index=PARAM_TO_INDEX,
+            cols=cols,
+            rows=rows,
+            center_i=left_n,
+            center_j=down_n,
+            eps_shift=1e-4
+        )
+        if nones.size == 0:
+            nones = sep_nones
+        elif sep_nones.size != 0:
+            nones = np.unique(np.concatenate([nones, sep_nones])).astype(np.int32)
+
+        print(f"INIT GRID FROM STABLE EQUILIBRIUM was built, failed points: {len(nones)}")
 
     else:
         raise ValueError(f"Unknown init_mode: {init_mode}")

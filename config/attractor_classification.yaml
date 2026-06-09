@@ -5,7 +5,14 @@ task: kneadings_pendulums
 # Режим старта:
 # Используем separatrix, чтобы анализировать глобальную структуру
 # (поведение неустойчивого многообразия седло-фокуса)
-init_mode: separatrix
+#stable_equilibrium старт с уст ср
+#manual с рандомной точки
+init_mode: manual
+inits:
+  fi1: 10.5
+  v1: -3.0
+  fi2: -1.0
+  v2: 1.0
 
 # Настройки автоматического старта с сепаратрисы
 separatrix_init:
@@ -14,35 +21,35 @@ separatrix_init:
   offset_index: 1
   # Базовые параметры, относительно которых строится сетка
   base_params:
-    gamma: 0.99
-    lambda: 0.2
-    k: 0.99
+    gamma: 0.3
+    lambda: 0.1
+    k: 0.5
 
 # Центральные параметры системы (центр карты)
 defaultSystem:
-  gamma: 0.02
-  lambda: 0.02
-  k: 0.2
+  gamma: 0.3
+  lambda: 0.1
+  k: 0.5
 
 # Описание сетки параметров
 grid:
   # Горизонтальная ось: коэффициент связи k
   first:
-    name: lambda
-    caption: "lambda"
-    left_n: 100
-    right_n: 100
-    left_step: 0.0005
-    right_step: 0.0005
+    name: k
+    caption: "k"
+    left_n: 300
+    right_n: 300
+    left_step: 0.001
+    right_step: 0.001
 
   # Вертикальная ось: внешнее воздействие gamma
   second:
     name: gamma
     caption: "gamma"
-    down_n: 100
-    up_n: 100
-    down_step: 0.0005
-    up_step: 0.0005
+    down_n: 300
+    up_n: 300
+    down_step: 0.001
+    up_step: 0.001
 
 # Настройки вычислительного ядра (CUDA)
 kneadings_pendulums:
@@ -69,7 +76,7 @@ misc:
     font_size: 14
 
 output:
-  # Путь к папке (проверь, чтобы он существовал)
+  # Путь к папке
   directory: "C:/Lobach4/tu/kneadings-master1/output/attractor_maps"
   mask: "attractor_map_9color"
   imageExtension: png

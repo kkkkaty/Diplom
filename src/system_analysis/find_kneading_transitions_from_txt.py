@@ -8,7 +8,7 @@ out_path = r"C:/Lobach4/tu/kneadings-master1/output/found_transitions.txt"
 
 # Паттерн строго под диапазон событий от 00 до 24
 pattern = re.compile(
-    r"k:\s*([0-9.]+),\s*gamma:\s*([0-9.]+)\s*=>\s*([0-4]{2}(?:\s*-\s*[0-4]{2})*)\s*\(Raw:\s*([0-9.eE+-]+)\)"
+    r"k:\s*([0-9.]+),\s*gamma:\s*([0-9.]+)\s*=>\s*([0-9]{2}(?:\s*-\s*[0-9]{2})*)\s*\(Raw:\s*([0-9.eE+-]+)\)"
 )
 
 points = []

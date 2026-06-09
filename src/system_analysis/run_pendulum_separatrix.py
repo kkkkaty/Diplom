@@ -202,7 +202,7 @@ def choose_target_saddle_focus(sadfocs, rule="phi1_lt_phi2"):
     return sadfocs[0]
 
 def main():
-    gamma = 0.3671
+    gamma = 0.5
     lam = 0.2
     k = 0.4322
 

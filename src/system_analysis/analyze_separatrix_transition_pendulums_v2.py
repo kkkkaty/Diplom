@@ -96,8 +96,8 @@ def decode_base25_weighted(x: float, length: int) -> str:
         combined_symbol = max(0, min(24, combined_symbol))
         m1 = combined_symbol // 5
         m2 = combined_symbol % 5
-        # Записываем в виде "00", "12" и т.д.
-        symbols.append(f"{m1}{m2}")
+        # Записываем сам индекс совместного события от 00 до 24
+        symbols.append(f"{combined_symbol:02d}")
         # Оставляем только дробную часть для следующего шага
         v -= combined_symbol
     return " - ".join(symbols)
@@ -516,9 +516,11 @@ def make_transition_plots_v2(config: Dict[str, Any], kneading_map_flat: np.ndarr
             phi2_range[0] - pad, phi2_range[1] + pad)
         if jj in [0, 2]: ax.set_ylim(phi1_range[0] - pad, phi1_range[1] + pad) if jj == 0 else ax.set_ylim(
             phi2_range[0] - pad, phi2_range[1] + pad)
+        if (ii, jj) == (0, 2):
+            ax.set_xlim(1.0, 2.0)
         if (ii, jj) == (0, 1):
             # Жесткое ограничение оси x для проекции (phi1, v1) от 1.0 до 5.0
-            ax.set_xlim(1.0, 5.0)
+            ax.set_xlim(1.0, 2.0)
 
     plt.tight_layout();
     plt.savefig(os.path.join(result.output_dir, "03_phase_projections_4d.png"), dpi=250);

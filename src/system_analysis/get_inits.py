@@ -260,7 +260,7 @@ def build_init_from_equilibrium(
     k,
     branch_rule="phi1_above_eq", #Правило выбора ветви сепаратрисы
     offset_index=1, #Номер точки на короткой траектории, которую мы возьмём как init_point
-    eps_shift=1e-6, #Очень маленький сдвиг от равновесия вдоль неустойчивого направления
+    eps_shift=1e-6, # сдвиг от равновесия
     dt_sep=1e-3, #Шаг по времени при построении локальной сепаратрисы
     steps_sep=1, #Сколько шагов пройти вдоль сепаратрисы
     ref_unstable_dir=None, #Опорное направление для согласования знака собственного вектора
@@ -609,3 +609,76 @@ def build_inits_on_parameter_grid_with_shape(
         dt_sep=dt_sep,
         steps_sep=steps_sep,
     )
+
+
+def find_target_stable_equilibrium_at_point(gamma, lam, k, prev_eq=None):
+    equilibria = find_equilibria_pendulum(gamma, k)
+    if not equilibria:
+        return None
+    eq_infos = [equilibrium_type(eq, gamma, lam, k) for eq in equilibria]
+
+    # Ищем строго устойчивые равновесия (где число неустойчивых направлений nU == 0)
+    candidates = [info for info in eq_infos if info["nU"] == 0]
+    if not candidates:
+        # Если строго устойчивых нет, берем с минимальным nU
+        candidates = sorted(eq_infos, key=lambda info: info["nU"])
+
+    if prev_eq is not None:
+        prev_eq = np.array(prev_eq, dtype=float)
+        candidates.sort(key=lambda info: np.linalg.norm(info["point"] - prev_eq))
+
+    return candidates[0]
+
+
+def build_stable_inits_on_parameter_grid_with_shape(
+        params_x, params_y, def_params, param_x_name, param_y_name, param_to_index,
+        cols, rows, center_i, center_j, eps_shift=0.05
+):
+    total = len(params_x)
+    dim = 4
+    inits = np.zeros(dim * total, dtype=np.float64)
+    nones = []
+    eq_points = [None] * total
+
+    for idx in range(total):
+        params = np.array(def_params, dtype=float)
+        params[param_to_index[param_x_name]] = params_x[idx]
+        params[param_to_index[param_y_name]] = params_y[idx]
+
+        gamma = float(params[param_to_index["gamma"]])
+        lam = float(params[param_to_index["lambda"]])
+        k = float(params[param_to_index["k"]])
+
+        # Ищем соседа слева или снизу для продолжения
+        prev_eq = None
+        i = idx % cols
+        j = idx // cols
+        neighbor_indices = []
+        if i - 1 >= 0: neighbor_indices.append((i - 1) + j * cols)
+        if j - 1 >= 0: neighbor_indices.append(i + (j - 1) * cols)
+
+        for nidx in neighbor_indices:
+            if eq_points[nidx] is not None:
+                prev_eq = eq_points[nidx]
+                break
+
+        try:
+            stable_eq_info = find_target_stable_equilibrium_at_point(gamma, lam, k, prev_eq=prev_eq)
+            if stable_eq_info is None:
+                raise RuntimeError("No stable equilibrium found")
+
+            eq = stable_eq_info["point"]
+            eq_points[idx] = eq
+
+            # Задаем начальную точку в окрестности устойчивого равновесия (с микро-возмущением по скоростям)
+            init_point = eq.copy()
+            init_point[1] += eps_shift
+            init_point[3] += eps_shift
+
+            inits[idx * dim: (idx + 1) * dim] = init_point
+        except Exception as e:
+            nones.append(idx)
+            eq_points[idx] = None
+            print(f"[STABLE INIT FAILED] idx={idx}: {e}")
+
+    return inits, np.array(nones, dtype=np.int32), eq_points
