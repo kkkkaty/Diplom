@@ -27,7 +27,7 @@ left_i = 598
 right_i = 599
 
 # сколько считать траекторию
-n_steps_traj = 100000
+n_steps_traj = 200000
 stride_traj = 1
 
 

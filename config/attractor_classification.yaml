@@ -9,10 +9,10 @@ task: kneadings_pendulums
 #manual с рандомной точки
 init_mode: manual
 inits:
-  fi1: 10.5
-  v1: -3.0
-  fi2: -1.0
-  v2: 1.0
+  fi1: 2.8
+  v1: 1.5
+  fi2: -2.4
+  v2: -1.3
 
 # Настройки автоматического старта с сепаратрисы
 separatrix_init:
@@ -21,15 +21,15 @@ separatrix_init:
   offset_index: 1
   # Базовые параметры, относительно которых строится сетка
   base_params:
-    gamma: 0.3
-    lambda: 0.1
-    k: 0.5
+    gamma: 0.9696
+    lambda: 0.2
+    k: 0.06985
 
 # Центральные параметры системы (центр карты)
 defaultSystem:
-  gamma: 0.3
-  lambda: 0.1
-  k: 0.5
+  gamma: 0.9696
+  lambda: 0.2
+  k: 0.06985
 
 # Описание сетки параметров
 grid:
@@ -37,19 +37,19 @@ grid:
   first:
     name: k
     caption: "k"
-    left_n: 300
-    right_n: 300
-    left_step: 0.001
-    right_step: 0.001
+    left_n: 400
+    right_n: 400
+    left_step: 0.00005
+    right_step: 0.00005
 
   # Вертикальная ось: внешнее воздействие gamma
   second:
     name: gamma
     caption: "gamma"
-    down_n: 300
-    up_n: 300
-    down_step: 0.001
-    up_step: 0.001
+    down_n: 400
+    up_n: 400
+    down_step: 0.0001
+    up_step: 0.0001
 
 # Настройки вычислительного ядра (CUDA)
 kneadings_pendulums:
@@ -59,11 +59,11 @@ kneadings_pendulums:
   n: 5000000
   stride: 1
   # Начинаем анализ только после 15 000 событий, чтобы забыть старт
-  kneadings_start: 100000
+  kneadings_start: 10000
   # Собираем окно в 2000 событий для поиска периода и типа движения
-  kneadings_end: 3000
+  kneadings_end: 2000
 
-  use_continuation_mode: True #протягивение аттрактора
+  use_continuation_mode: False #протягивение аттрактора
   use_9color_mode: True   # ВКЛЮЧАЕМ РЕЖИМ 10 ЦВЕТОВ (Stat/Lib/Rot)
   use_regime_mode: False  # Отключаем ЧБ режим
 

@@ -68,17 +68,16 @@ def distance_poincare_points(u1, u2):
     return np.sqrt(d_phi1 ** 2 + d_phi2 ** 2 + d_v2 ** 2)
 
 #Отображение Пуанкаре берет 3 координаты на сечении u=[fi1,fi2,v2], делает из них 4D старт (добавив v1=0), интегрирует маятники вперед по времени и ловит их в момент следующего возвращения на сечение.
-def poincare_map(u, gamma, lam, k):
+def poincare_map(u, gamma, lam, k, t_offset=0.04, t_max=100.0, rtol=1e-10, atol=1e-10):
     phi1, phi2, v2 = u
     y0 = np.array([phi1, 0.0, phi2, v2], dtype=float)
 
     # Шаг вперед на 0.04 секунды без датчика, чтобы уйти с сечения v1=0 и не самоблокироваться
-    sol_init = solve_ivp(system, [0.0, 0.04], y0, args=(gamma, lam, k), rtol=1e-10, atol=1e-10)
+    sol_init = solve_ivp(system, [0.0, t_offset], y0, args=(gamma, lam, k), rtol=rtol, atol=atol)
     y_start = sol_init.y[:, -1]
 
     # Интегрируем до следующего пересечения v1 = 0 снизу вверх
-    sol = solve_ivp(system, [0.04, 100.0], y_start, args=(gamma, lam, k),
-                    events=event_v1_zero, rtol=1e-10, atol=1e-10)
+    sol = solve_ivp(system, [t_offset, t_max], y_start, args=(gamma, lam, k), events=event_v1_zero, rtol=rtol, atol=atol)
 
     if not sol.t_events[0].size:
         return None, None # не вернулись на сечение
@@ -88,26 +87,26 @@ def poincare_map(u, gamma, lam, k):
     phi1_ret = np.mod(y_return[0] + np.pi, 2 * np.pi) - np.pi
     phi2_ret = np.mod(y_return[2] + np.pi, 2 * np.pi) - np.pi
     v2_ret = y_return[3]
-    T = sol.t_events[0][0] + 0.04
+    T = sol.t_events[0][0] + t_offset
 
     return np.array([phi1_ret, phi2_ret, v2_ret]), T
 
 
 # Отображение Пуанкаре кратности n (для поиска периодов n)
-def poincare_map_n(u, n, gamma, lam, k):
+def poincare_map_n(u, n, gamma, lam, k, t_offset=0.04, t_max=100.0, rtol=1e-10, atol=1e-10):
     curr_u = u.copy()
     total_T = 0.0
     for _ in range(n):
-        curr_u, T = poincare_map(curr_u, gamma, lam, k)
+        curr_u, T = poincare_map(curr_u, gamma, lam, k, t_offset=t_offset, t_max=t_max, rtol=rtol, atol=atol)
         if curr_u is None:
             return None, None
         total_T += T
     return curr_u, total_T
 
 # Функция невязки: возвращает вектор расстояния между P^n(u) и u
-def poincare_residual_n(u, n, gamma, lam, k):
+def poincare_residual_n(u, n, gamma, lam, k, t_offset=0.04, t_max=100.0, rtol=1e-10, atol=1e-10):
     # Запускаем маятники с финиша из точки u и катим их n кругов вперед по времени
-    p_u, _ = poincare_map_n(u, n, gamma, lam, k)
+    p_u, _ = poincare_map_n(u, n, gamma, lam, k, t_offset=t_offset, t_max=t_max, rtol=rtol, atol=atol)
     # Если маятники улетели в бесконечность или застряли и не вернулись на финиш
     if p_u is None:
         # Возвращаем огромный штраф [1000, 1000, 1000], чтобы решатель ушел из этой опасной зоны
@@ -227,8 +226,8 @@ for n in [1, 2, 3]:
                     J = compute_poincare_jacobian_n(u_star, n, gamma_val, lam_val, k_val)
                     if J is not None:
                         eigvals, eigvecs = np.linalg.eig(J)
-                        unstable = [m for m in eigvals if abs(m) > 1.05]
-                        stable = [m for m in eigvals if abs(m) < 0.95]
+                        unstable = [m for m in eigvals if abs(m) > 1.0001]
+                        stable = [m for m in eigvals if abs(m) < 0.9999]
                         #Если у цикла ровно одно неустойчивое направление (len(unstable) == 1) и два устойчивых (len(stable) == 2),
                         # этот цикл объявляется седловым
                         is_saddle = len(unstable) == 1 and len(stable) == 2
@@ -307,7 +306,7 @@ if saddle_cycle_u is not None:
             handles, labels = ax.get_legend_handles_labels()
 
         if (ii, jj) == (0, 2):
-            ax.set_xlim(1.75, 1.85);
+            ax.set_xlim(1.79, 1.83);
             ax.set_ylim(0, 100)
         elif (ii, jj) == (1, 3):
             ax.set_xlim(-0.05, 0.1);
